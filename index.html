@@ -1,0 +1,148 @@
+<html>
+	<head>
+		<title>The Real Time Chat</title>
+	</head>
+	<body style="margin: 0px; padding: 0px">
+		<table style="width: 100%; height: 100%; margin: 0px; padding: 0px" cellpadding="0" cellmargin="0">
+			<tr>
+				<td style="width: 80%; background-color: lightblue; vertical-align: top; height: 100%; margin: 0px;">
+					<div id="history" style="padding: 15px 0px 15px 15px; height: 90%; overflow: auto"></div>
+				</td>
+				<td style="width: 20%; background-color: #363636; vertical-align: top; padding: 15px;">
+					<div id="users"></div>
+				</td>
+			</tr>
+			<tr>
+				<td style="width: 80%; background-color: lightblue; vertical-align: top;">
+					<div id="textbar">
+						<input id="chatInput" type="text" style="width: 100%; font-size: 15pt;" />
+					</div>
+				</td>
+				<td style="width: 20%; background-color: #363636; vertical-align: top; padding: 15px;">
+
+				</td>
+			</tr>
+		</table>
+
+		<script src="jquery-1.8.2.min.js" type="text/javascript"></script>
+		<script src="jquery.timer.js" type="text/javascript"></script>
+		<script src="/socket.io/socket.io.jss"></script>
+		<script>
+
+			var socket = io.connect('http://realchat.jit.su/');
+
+			// Pull user list
+			socket.on('userList', function (data) {
+				for(var i=0; i<data.length; i++) {
+					addUserToList(data[i]);
+				}
+
+			});
+
+			var n = "";
+			n = prompt("What's your name?");
+			var c = "";
+
+			if (n == "" || n == null) {
+				n = prompt("Please, insert your name in the field!");
+			}
+
+			if (n == "" || n == null) {
+				alert("I'm sorry, no name, no chat! :(");
+				throw "stop execution";
+			}
+
+			n = n.replace(/ /g,'_');
+
+			/*************  Me ******************/
+
+			// I am a new user
+			socket.emit('newUser', {nick: n});
+
+			// When I start writing
+			var isTypping = 0;
+			var typpingTimer;
+
+			function resetTyppingTimer() {
+				window.clearTimeout(typpingTimer);
+				typpingTimer = setTimeout(function () {
+					isTypping = 0;
+					socket.emit('stopWriting', {nick: n});
+				},1000);
+				
+			}
+
+			$("#chatInput").keypress(function(e) {
+
+				if (isTypping == 0) {
+					socket.emit('startWriting', {nick: n});
+					isTypping = 1;
+				}
+
+				resetTyppingTimer();
+
+				// On enter send new message
+				if(e.keyCode == 13) {
+					socket.emit('newMessage', {nick:n, message: $('#chatInput').val()});
+					$('#chatInput').val('');
+				}
+
+			});
+
+			// Save my color
+			socket.on('color', function (data) {
+				c = data;
+			});
+
+			// Get the last messages
+			socket.on('lastMsgs', function (data) {
+				for (var i=0; i<data.length;i++)
+					addMsg(data[i]);
+			});
+
+			/********* THE OTHER'S **************/
+
+			// When a new user arrive
+			socket.on('newUser', function (data) {
+				addUserToList(data);
+			});
+
+			// When a user left
+			socket.on('delUser', function (data) {
+				$("#user-" + data['nick']).remove();
+			});
+
+			// When a user start typing
+			socket.on('startWriting', function (data) {
+				$("#type-" + data['nick']).html('');
+				$("#type-" + data['nick']).append('<small><i> is typing...</i></small>');
+			});
+
+			// When a user start typing
+			socket.on('stopWriting', function (data) {
+				$("#type-" + data['nick']).html('');
+			});
+
+			// When a user send a new message
+			socket.on('newMessage', function (data) {
+				addMsg(data);
+			});
+
+			/********* API **********/
+
+			function addUserToList(data) {
+				$("#users").append('<div id="user-' + data['nick'] + '" style="color: ' + data['color'] + '" style="width: 100%;">' + data['nick'] + '<span id="type-' + data['nick'] + '" style="color: silver;"></span></div>');
+			}
+
+			function addMsg(data) {
+				var random = "" + Math.random();
+				var id = data['nick'] + "-" + random.substring(2);
+				$("#history").append('<div id="' + id + '" style="display: none; color: ' + data['color'] + '"><b>' + data['nick'] + '</b> ' + data['message'] + '</div>');
+				$('#history').stop().animate({ scrollTop: $("#history")[0].scrollHeight }, 800);
+				$("#" + id).fadeIn();
+
+			}
+		  
+		</script>
+	</body>
+</html>
